@@ -1,0 +1,17 @@
+# Secrets
+.env
+
+# Config (Optional: remove this line if you want to share config structure, but keep if it has preferences)
+config.json
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Build Artifacts
+dist/
+build/
+*.spec
+
+# System
+.DS_Store
