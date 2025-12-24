@@ -43,6 +43,33 @@ def get_target_channel_id():
     config = load_config()
     return config.get('target_channel_id')
 
+def create_status_embed(proc):
+    if proc:
+        try:
+            # oneshot을 사용하여 프로세스 정보를 한 번에 가져와 일관성 유지 및 오버헤드 감소
+            with proc.oneshot():
+                cpu_usage = proc.cpu_percent(interval=None) 
+                mem_usage_mb = proc.memory_info().rss / 1024 / 1024
+            
+            embed = discord.Embed(title="🌲 아로나의 서버 리포트!", color=discord.Color.brand_green())
+            embed.set_thumbnail(url="https://static.wikia.nocookie.net/blue-archive/images/6/63/Arona_Icon.png")
+            embed.add_field(name="상태", value="✅ **온라인** (열심히 돌아가고 있어요!)", inline=False)
+            embed.add_field(name="메모리", value=f"{mem_usage_mb:.1f} MB", inline=True)
+            embed.add_field(name="CPU", value=f"{cpu_usage}%", inline=True)
+            embed.set_footer(text="언제나 최선을 다하고 있답니다, 선생님! ✨")
+            return embed
+        except Exception as e:
+            print(f"Status check error: {e}")
+            # 에러 발생 시에도 온라인상태라면 기본 임베드 반환 시도
+            embed = discord.Embed(title="🌲 아로나의 서버 리포트!", description="서버는 켜져 있는데 정보를 가져오다 넘어졌어요... 😵‍💫", color=discord.Color.brand_green())
+            return embed
+    else:
+        embed = discord.Embed(title="🌲 아로나의 서버 리포트!", color=discord.Color.greyple())
+        embed.set_thumbnail(url="https://static.wikia.nocookie.net/blue-archive/images/6/63/Arona_Icon.png")
+        embed.add_field(name="상태", value="💤 **오프라인**", inline=False)
+        embed.set_footer(text="서버가 쉬고 있는 것 같아요... 💤")
+        return embed
+
 def find_process():
     for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'memory_info', 'cpu_percent']):
         try:
@@ -69,12 +96,24 @@ async def server_monitor_loop():
                 if cid:
                     channel = bot.get_channel(cid)
                     if channel:
+                        # Use the shared create_status_embed function
+                        embed = create_status_embed(proc)
+                        # Add a specific description for the notification context if needed, or just use the embed as is.
+                        # The user wants it "exactly like stats", so we use the returned embed.
+                        # However, for notifications, we might want to change the title slightly or keep it.
+                        # Let's keep the structured info but maybe add a notification line? 
+                        # User said "internal structure is same as stats", so using the exact embed is safest.
+                        # But to differentiate "Opened" vs "Closed" event clearly in title:
+                        
                         if current_status:
-                            embed = discord.Embed(title="🌟 서버 오픈!", description="선생님! 서버가 정상적으로 켜졌어요! 어서 오세요! 🎮", color=discord.Color.brand_green())
-                            await channel.send(embed=embed)
+                             embed.title = "🌟 서버 오픈! (아로나의 리포트)"
+                             embed.description = "선생님! 서버가 켜졌어요! 현재 상태는 이래요!"
                         else:
-                            embed = discord.Embed(title="💤 서버 종료", description="서버 연결이 종료되었어요. 오늘도 수고 많으셨어요, 선생님! 🌙", color=discord.Color.greyple())
-                            await channel.send(embed=embed)
+                             embed.title = "💤 서버 종료"
+                             embed.description = "서버 연결이 종료되었어요. 오늘도 수고 많으셨어요!"
+                             embed.color = discord.Color.greyple() # Force greyple for offline notification
+                        
+                        await channel.send(embed=embed)
                 
                 last_server_status = current_status
         except Exception as e:
@@ -188,25 +227,8 @@ async def on_ready():
 async def status(interaction: discord.Interaction):
     await interaction.response.defer()
     proc = find_process()
-    if proc:
-        try:
-            cpu_usage = proc.cpu_percent(interval=None) 
-            mem_usage_mb = proc.memory_info().rss / 1024 / 1024
-            embed = discord.Embed(title="🌲 아로나의 서버 리포트!", color=discord.Color.brand_green())
-            embed.set_thumbnail(url="https://static.wikia.nocookie.net/blue-archive/images/6/63/Arona_Icon.png")
-            embed.add_field(name="상태", value="✅ **온라인** (열심히 돌아가고 있어요!)", inline=False)
-            embed.add_field(name="메모리", value=f"{mem_usage_mb:.1f} MB", inline=True)
-            embed.add_field(name="CPU", value=f"{cpu_usage}%", inline=True)
-            embed.set_footer(text="언제나 최선을 다하고 있답니다, 선생님! ✨")
-            await interaction.followup.send(embed=embed)
-        except:
-             await interaction.followup.send("⚠️ 으앙, 선생님! 상태를 확인하다가 넘어졌어요... (오류 발생) 😵‍💫")
-    else:
-        embed = discord.Embed(title="🌲 아로나의 서버 리포트!", color=discord.Color.red())
-        embed.set_thumbnail(url="https://static.wikia.nocookie.net/blue-archive/images/6/63/Arona_Icon.png")
-        embed.add_field(name="상태", value="💤 **오프라인**", inline=False)
-        embed.set_footer(text="서버가 쉬고 있는 것 같아요... 💤")
-        await interaction.followup.send(embed=embed)
+    embed = create_status_embed(proc)
+    await interaction.followup.send(embed=embed)
 
 @bot.tree.command(name="채널선택", description="공지사항을 올릴 채널을 설정합니다.")
 async def select_channel(interaction: discord.Interaction, channel: discord.TextChannel):
