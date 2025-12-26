@@ -48,7 +48,8 @@ def create_status_embed(proc):
         try:
             # oneshot을 사용하여 프로세스 정보를 한 번에 가져와 일관성 유지 및 오버헤드 감소
             with proc.oneshot():
-                cpu_usage = proc.cpu_percent(interval=None) 
+                # interval=None이면 새 객체 생성 시 항상 0이 나오므로, 0.1초 대기하여 측정하도록 변경
+                cpu_usage = proc.cpu_percent(interval=0.1) 
                 mem_usage_mb = proc.memory_info().rss / 1024 / 1024
             
             embed = discord.Embed(title="🌲 아로나의 서버 리포트!", color=discord.Color.brand_green())
