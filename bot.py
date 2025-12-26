@@ -98,26 +98,31 @@ async def server_monitor_loop():
                     if channel:
                         # Use the shared create_status_embed function
                         embed = create_status_embed(proc)
-                        # Add a specific description for the notification context if needed, or just use the embed as is.
-                        # The user wants it "exactly like stats", so we use the returned embed.
-                        # However, for notifications, we might want to change the title slightly or keep it.
-                        # Let's keep the structured info but maybe add a notification line? 
-                        # User said "internal structure is same as stats", so using the exact embed is safest.
-                        # But to differentiate "Opened" vs "Closed" event clearly in title:
                         
                         if current_status:
                              embed.title = "🌟 서버 오픈! (아로나의 리포트)"
                              embed.description = "선생님! 서버가 켜졌어요! 현재 상태는 이래요!"
+                             print(f"[{datetime.datetime.now()}] Detected Server ONLINE. Sending notification.")
                         else:
                              embed.title = "💤 서버 종료"
                              embed.description = "서버 연결이 종료되었어요. 오늘도 수고 많으셨어요!"
                              embed.color = discord.Color.greyple() # Force greyple for offline notification
+                             print(f"[{datetime.datetime.now()}] Detected Server OFFLINE. Sending notification.")
                         
-                        await channel.send(embed=embed)
+                        try:
+                            await channel.send(embed=embed)
+                        except Exception as e:
+                            print(f"Failed to send notification: {e}")
+                    else:
+                        print(f"[{datetime.datetime.now()}] Channel ID {cid} found in config, but channel object is None. Check permissions or if channel exists.")
+                else:
+                    print(f"[{datetime.datetime.now()}] Status changed (Online: {current_status}), but NO TARGET CHANNEL set. Run /채널선택 in Discord.")
                 
                 last_server_status = current_status
         except Exception as e:
             print(f"Monitor Loop Error: {e}")
+            import traceback
+            traceback.print_exc()
             
         await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(seconds=10))
 
@@ -222,6 +227,16 @@ class StartTimeView(ui.View):
 async def on_ready():
     print(f'Logged in as {bot.user} (ID: {bot.user.id})')
     print(f'Monitoring for process containing: "{PROCESS_TARGET}"')
+    
+    cid = get_target_channel_id()
+    if cid:
+        channel = bot.get_channel(cid)
+        if channel:
+            print(f"Target Channel: {channel.name} (ID: {cid}) - OK")
+        else:
+            print(f"Target Channel ID {cid} is loaded, but Bot cannot see the channel.")
+    else:
+        print("WARNING: No target channel set! Use /채널선택 to set the notification channel.")
 
 @bot.tree.command(name="상태", description="마인크래프트 서버 상태를 확인합니다.")
 async def status(interaction: discord.Interaction):
